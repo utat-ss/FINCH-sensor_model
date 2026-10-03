@@ -1,139 +1,146 @@
-<img src="img/logo.png" height="128">
+# FINCH Sensor Model
 
-# Python Project Template
-A project.
+Small Python prototypes for two sensor-model building blocks:
 
-<img src="img/utat-logo.png" height="64">
+1. **Coordinate transformations** for a camera and for GPS positions.
+2. **Image georeferencing** of a PNG from supplied ground-control points (GCPs).
 
-# Contribution
-Instructions for contributing to this project are shown here.
-## Setup ⚙️
-This section will take you through the procedure to take your development environment from zero to hero.
-1. Install python from the official [website](https://www.python.org/downloads/).
+This repository is a collection of runnable, configuration-by-editing scripts. It is not a Python package, command-line tool, or complete end-to-end sensor-model pipeline.
 
-    The project runs on python `3.10`.
+## What it can do
 
-1. Install [git](https://git-scm.com/).
+### Convert GPS coordinates to Earth-centred Cartesian coordinates
 
-1. Install [poetry](https://python-poetry.org/).
+`Coordinate Transformation/TransVect.py` provides `gps_to_ecef(lat, lon, alt)`.
 
-    The project uses poetry as its package manager. Poetry allows you to run a single command to install all the dependencies for the project. Install it through the Windows Powershell via:
-    ```
-    (Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | python -
-    ```
+- Accepts geodetic latitude and longitude in degrees and altitude in metres.
+- Uses hard-coded WGS84 semi-major-axis and eccentricity constants.
+- Returns Earth-centred, Earth-fixed (ECEF) `X`, `Y`, and `Z` coordinates in metres.
+- Demonstrates the calculation for one satellite location and one ground-control-point location.
+- Computes an ECEF translation vector by subtracting the GCP position from the satellite position.
 
-    On Linux/MacOS with:
-    ```
-    curl -sSL https://install.python-poetry.org | python3 -
-    ```
+### Form a roll–pitch–yaw rotation matrix
 
-    Once poetry is installed, if it does not say it has automatically add itself to your PATH, add its executible directory to your PATH:
+`Coordinate Transformation/RotMatrix.py` contains the matrix construction for rotations about the X, Y, and Z axes and combines them as:
 
-    Windows: `%APPDATA%\Python\Scripts`
-
-    Linux/MacOS: `$HOME/.local/bin`
-    
-    For instructions on adding directories to your machine's PATH, check out [this](https://helpdeskgeek.com/windows-10/add-windows-path-environment-variable/) (Windows) or [this](https://stackoverflow.com/a/19663996) (Linux/MacOS). You'll need to close all instances of your terminals for the PATH changes to take effect. 
-    
-    Confirm poetry was installed correctly by typing the following in your terminal:
-    ```
-    poetry --version
-    ```
-
-    Configure poetry to create its virtual environments within the project's directory. This makes it easier to clean your machine when you delete the project. The `.venv` folders can get pretty big.
-    ```
-    poetry config virtualenvs.in-project true
-    ```
-
-1. Clone the repository.
-
-    It is recommended that you use [Github Desktop](https://desktop.github.com/) to clone the project repository.
-
-1. Install project dependencies
-
-    From a terminal within the cloned repository, run poetry's install command:
-    ```
-    poetry install
-    ```
-
-1. Install recommended extensions for VSCode
-    Install the recomended extensions by opening the command pallet using `CMD + shift + P`. Type `Show Reccomended Extensions` and install the extensions listed.
-
-1. Configure IDE interpreter
-
-    It is recommended you use [VSCode](https://code.visualstudio.com/) as your integrated development environment (IDE). Configure your IDE to use the virtual environment poetry has created at `C:\Users\<USERNAME>\AppData\Local\pypoetry\Cache\virtualenvs` (you can also find it with the command `poetry show -v`).
-    
-    In the case of VSCode, enter the command pallet by going to `View>Command Palette` and search for `Python:Select Interpreter`. Select the appropriate poetry virtual environment for the repository. Restart VSCode if you do not see it listed. Once the intepreter is changed, restart your terminal by closing the old one and launching it again.
-
-    For Windows Powershell users, you might need to change the PS execution policy to allow the script to run. Run a Powershell terminal as administrator and run the following:
-    ```
-    Set-ExecutionPolicy -ExecutionPolicy Bypass
-    ```
-
-1. Install pre-commit hooks
-
-    Install the project's pre-commit hooks using:
-    ```
-    pre-commit install --install-hooks
-    ```
-    
-    Pre-commit's cache will be stored at `~/.cache/pre-commit` (this folder can grow very large).
-
-
-You're now ready to start contributing!
-
-## Adding Packages 📦
-To add a new package to the poetry virtual environment, install it via:
-```
-poetry add <package>
-```
-This is poetry's version of `pip install <package>`.
-
-## Pre-Commit ✅
-This project is configured to use [pre-commit](https://pre-commit.com/) hooks. A hook is a script that performs some operation on the repository before every commit. Hooks are used to autoformat and lint code. Pre-commit will not let you push your commit until all hooks pass. When a hook fails, they can be run manually to delint using:
-```
-pre-commit run --all-files
+```python
+R = R_z @ R_y @ R_x
 ```
 
-Hooks can be updated using:
+This represents a Z–Y–X (yaw, pitch, roll) composition. The script expects `roll_angle`, `pitch_angle`, and `yaw_angle` to be defined before it is run.
+
+### Project a known 3D calibration point into image pixels
+
+`Coordinate Transformation/CoordTrans.py` demonstrates the pinhole-camera projection:
+
+```text
+image_homogeneous = K × [R | T] × world_homogeneous
+pixel = image_homogeneous[:2] / image_homogeneous[2]
 ```
-pre-commit autoupdate
+
+The script currently:
+
+- Defines a 3×3 intrinsic camera matrix from focal lengths and principal-point offsets.
+- Defines a calibrated 3×3 rotation matrix and 3-element translation vector.
+- Builds the 3×4 extrinsic matrix `[R | T]`.
+- Uses one point on a planar 25 mm checkerboard and prints its projected 2D image coordinate.
+
+The calibration values and sample checkerboard point are embedded in the script; they are not estimated from images.
+
+### Georeference a PNG using GCPs
+
+`Georeferencing/Georefrencing_PNG_Full.py` uses Rasterio and GeoPandas to associate image pixels with geographic coordinates.
+
+- Accepts Rasterio `GroundControlPoint` objects expressed as pixel row/column plus longitude/latitude.
+- Derives an affine transform from those GCPs using `rasterio.transform.from_gcps`.
+- Uses EPSG:4326 as the coordinate reference system.
+- Writes a GeoTIFF named `salt_flat_with_gcps.tiff` into a chosen output directory.
+- Converts non-zero raster regions into vector geometries and writes them as `salt_flat_with_gcps.geojson`.
+- Includes four example GCPs and `Georeferencing/testdata.png` as a demonstration input.
+
+## Repository layout
+
+```text
+Coordinate Transformation/
+  CoordTrans.py                 # fixed-parameter 3D-to-image projection example
+  RotMatrix.py                  # roll, pitch, yaw rotation-matrix construction
+  TransVect.py                  # WGS84 GPS-to-ECEF conversion and example translation
+Georeferencing/
+  Georefrencing_PNG_Full.py     # GCP-based PNG to GeoTIFF/GeoJSON workflow
+  testdata.png                  # example raster input
+notebooks/notebook.ipynb        # empty starter notebook
 ```
 
-## Branches 🌿
-Branches are organized as follow:
+## Setup
 
-1. `main`: the branch containing the most recent working release. All code in this branch should run perfectly without any known errors.
+The project metadata targets Python 3.10 and Poetry:
 
-1. `dev`: branched off of `main`; the most updated version of the project with the newest features and bug fixes.
+```bash
+poetry install
+```
 
-1. `<feature>`: branched off of `dev`; a feature branch. Features must be tested thoroughly before being merged into dev.
+The coordinate-transformation scripts require NumPy. The georeferencing script also imports Rasterio and GeoPandas, which are used by the source but are not currently declared in `pyproject.toml`. Install them in the same environment before running that workflow:
 
-## Taking on Tickets 🎫
-Check out the issues tab to see all open tickets.
+```bash
+poetry run pip install rasterio geopandas
+```
 
-## Upgrading Python Version ⬆️
-When the project changes python version, it is neccesary to create a new poetry environment with the updated python installation. To do so, proceed as follows:
+## Running the examples
 
-1. Download and install the required python version from the official website.
+Run the coordinate examples from the repository root:
 
-1. Within the current poetry environment, call:
-    ```
-    poetry env use /full/path/to/new/python.exe
-    ```
-    You can get this path from your environment variables. Poetry will then generate a new empty environment assigned to run using the new python version.
+```bash
+poetry run python "Coordinate Transformation/TransVect.py"
+poetry run python "Coordinate Transformation/CoordTrans.py"
+```
 
-1. Switch to the new empty environment and call:
-    ```
-    poetry install
-    ```
-    and
-    ```
-    pre-commit install --install-hooks
-    ```
-    To install all the dependencies within this new environment.
+Before running the rotation example, define numeric angles (in degrees) at the top of `RotMatrix.py`, for example:
 
-You're now ready to start development with the new version of python!
+```python
+roll_angle = 0.0
+pitch_angle = 0.0
+yaw_angle = 0.0
+```
 
+Then run:
 
+```bash
+poetry run python "Coordinate Transformation/RotMatrix.py"
+```
 
+For the supplied georeferencing example, run it from its directory because the script resolves `testdata.png` relative to the current working directory. Create the output directory first:
+
+```bash
+cd Georeferencing
+mkdir -p output
+poetry run python Georefrencing_PNG_Full.py
+```
+
+This produces:
+
+```text
+Georeferencing/output/salt_flat_with_gcps.tiff
+Georeferencing/output/salt_flat_with_gcps.geojson
+```
+
+To georeference another image, update the input image path, output directory, and the GCP list in `Georefrencing_PNG_Full.py`. GCP longitude/latitude order and pixel coordinates must match the image being processed.
+
+## Current boundaries
+
+The repository does **not** currently provide:
+
+- Automatic camera calibration or calibration-target detection.
+- Estimation of intrinsic/extrinsic parameters from sensor data.
+- A reusable sensor-model API, package entry point, or command-line interface.
+- Automated tests for transformation or georeferencing behaviour.
+- Validation of GCP quality, georeferencing accuracy, or output products.
+- Orthorectification, terrain correction, image mosaicking, or satellite ephemeris/attitude ingestion.
+- A complete satellite-image-to-map workflow.
+
+## Development notes
+
+The repository includes Poetry, pre-commit, linting, type-checking, and pytest configuration inherited from a Python project template. The executable functionality currently lives in the standalone scripts above.
+
+## License
+
+This repository is released under the [Unlicense](LICENSE).
