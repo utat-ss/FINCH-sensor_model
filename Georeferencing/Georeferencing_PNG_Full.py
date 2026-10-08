@@ -8,17 +8,19 @@ import geopandas as gpd
 from rasterio import features
 
 # Define your GCPs as a list of GroundControlPoints
-# Example format: [(pixel_x, pixel_y, lng, lat)]
+# Example format: [(pixel_row, pixel_col, lng, lat)]
 gcps = [
-    GroundControlPoint(0, 0, -68.1620, -19.3610),  # Top-left corner
-    GroundControlPoint(400, 0, -68.1500, -19.3610),  # Top-right corner
-    GroundControlPoint(400, 400, -68.1500, -19.3700),  # Bottom-right corner
-    GroundControlPoint(0, 400, -68.1620, -19.3700)  # Bottom-left corner
+    GroundControlPoint(295, 207, -68.315237, -19.328803),
+    GroundControlPoint(362, 142, -68.404134, -19.416549),
+    GroundControlPoint(160, 316, -68.167262, -19.159137),
+    GroundControlPoint(625, 234, -68.278207, -19.756831),
+    GroundControlPoint(146, 130, -68.421179, -19.136172),
+    GroundControlPoint(262, 268, -68.231269, -19.286650)
 ]
 
 def getGeoTiffWithGCPs(png_path, output_path, gcps):
     dataset = rasterio.open(png_path)
-    bands = [1]
+    bands = [1, 2, 3]
     data = dataset.read(bands)
     
     # Create a transform based on GCPs
@@ -29,7 +31,7 @@ def getGeoTiffWithGCPs(png_path, output_path, gcps):
     with rasterio.open(os.path.join(output_path, "salt_flat_with_gcps.tiff"), 'w', driver='GTiff',
                     width=data.shape[1], height=data.shape[2],
                     count=3, dtype=data.dtype, nodata=0,
-                    transform=transform, crs=crs, gcps=gcps) as dst:
+                    transform=transform, crs=crs) as dst:
         dst.write(data, indexes=bands)
 
 def getGeojsonWithGCPs(gcps):
