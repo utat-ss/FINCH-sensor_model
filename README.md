@@ -125,6 +125,26 @@ Georeferencing/output/salt_flat_with_gcps.geojson
 
 To georeference another image, update the input image path, output directory, and the GCP list in `Georefrencing_PNG_Full.py`. GCP longitude/latitude order and pixel coordinates must match the image being processed.
 
+## Salt Flat Georeferencing Example
+
+This example demonstrates georeferencing using an affine coordinate transformation. Given a set of GCPs, the transformation maps image pixel coordinates $(x_{in}, y_{in})$ to geographic coordinates $(x_{lon}, y_{lat})$:
+
+$$
+x_{lon} = Ax_{in} + By_{in} + C \\
+y_{lat} = Dx_{in} + Ey_{in} + F
+$$
+
+Six GCPs are selected from identifiable features in the image whose geographic coordinates can be estimated using mapping software such as Google Maps. Rasterio uses the corresponding image and geographic coordinates to calculate an affine transformation, yielding the following equations:
+
+$$
+x_{lon} = 0.00137x_{in} + 1.76927 \times 10^{-6}y_{in} - 68.59888 \\
+y_{lat} = -1.73772 \times 10^{-5}x_{in} - 0.00129y_{in} - 18.94542
+$$
+
+The diagram below shows the six GCPs as circles and additional test points as triangles. The test points were not used to estimate the transformation parameters. Instead, they provide a visual check of how well the resulting transformation aligns other locations in the image with their corresponding geographic positions.
+
+![Georeferencing Example](./Georeferencing/example.png)
+
 ## Current boundaries
 
 The repository does **not** currently provide:
